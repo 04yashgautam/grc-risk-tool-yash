@@ -101,6 +101,13 @@ def get_mitigation_hint(level: str) -> str:
 @app.post("/assess-risk", response_model=RiskOutput)
 def assess_risk(risk: RiskInput, db: Session = Depends(get_db)):
 
+    # error handle
+    if not (1 <= risk.likelihood <= 5) or not (1 <= risk.impact <= 5):
+         raise HTTPException(
+             status_code=400, 
+             detail="Invalid range: Likelihood and Impact must be 1–5."
+         )
+
     # business logic
     score = risk.likelihood * risk.impact 
     level = calculate_risk_level(score)   

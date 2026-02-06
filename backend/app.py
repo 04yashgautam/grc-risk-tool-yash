@@ -11,14 +11,18 @@ from sqlalchemy import or_
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
+import os
+from dotenv import load_dotenv
+
+# dotenv config
+load_dotenv()
+
 # db connection
 SQLALCHEMY_DATABASE_URL = "sqlite:///./risks.db"
-
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 
 # db model
 Base = declarative_base()
@@ -34,10 +38,8 @@ class RiskModel(Base):
     score = Column(Integer)
     level = Column(String)
 
-
 # create tables on startup
 Base.metadata.create_all(bind=engine)
-
 
 # pydantic schema for input
 class RiskInput(BaseModel):
@@ -57,13 +59,20 @@ class RiskOutput(RiskInput):
         from_attributes = True
 
 
+
 # app init
 app = FastAPI()
+
+# origins
+origins = [
+    "http://localhost:3000",
+    os.getenv("FRONTEND_URL_PROD")
+]
 
 # cors
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -113,7 +122,7 @@ def assess_risk(risk: RiskInput, db: Session = Depends(get_db)):
     level = calculate_risk_level(score)   
     mitigation = get_mitigation_hint(level)
 
-
+    # create entry
     new_risk = RiskModel(
         asset=risk.asset,
         threat=risk.threat,
@@ -124,11 +133,13 @@ def assess_risk(risk: RiskInput, db: Session = Depends(get_db)):
         mitigation=mitigation
     )
 
+    # added to db
     db.add(new_risk)
     db.commit()
     db.refresh(new_risk)
     
     return new_risk
+
 
 # route /risks
 @app.get("/risks", response_model=List[RiskOutput])
@@ -136,9 +147,11 @@ def get_risks(level: Optional[str] = None, search: Optional[str] = None, db: Ses
     
     query = db.query(RiskModel)
     
+    # level filter
     if level:
         query = query.filter(RiskModel.level == level)
 
+    # search filter
     if search:
         search_fmt = f"%{search}%"
         query = query.filter(

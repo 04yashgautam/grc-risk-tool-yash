@@ -68,8 +68,8 @@ app = FastAPI()
 
 # origins
 origins = [
-    "http://localhost:3000",
-    os.getenv("FRONTEND_URL_PROD")
+    os.getenv("FRONTEND_URL_PROD"),
+    os.getenv("FRONTEND_URL_LOCAL")
 ]
 
 # cors

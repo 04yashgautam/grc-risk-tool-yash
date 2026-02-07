@@ -16,7 +16,7 @@ const RiskForm = ({ onRiskAdded }) => {
   }, [formData.likelihood, formData.impact]);
 
   // handlesubmit /assess-risk
-  const API_BASE_URL = import.meta.env.API_BASE_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {

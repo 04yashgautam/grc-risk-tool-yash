@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy import or_
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # dotenv config
@@ -128,14 +128,14 @@ def assess_risk(risk: RiskInput, db: Session = Depends(get_db)):
         score=score,
         level=level,
         mitigation=mitigation,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     
     # new entry
     db.add(new_risk)
     db.commit()
     db.refresh(new_risk)
-    
+
     return new_risk
 
 # route /risks
@@ -146,7 +146,7 @@ def get_risks(level: Optional[str] = None, search: Optional[str] = None, db: Ses
     
     # level filter
     if level:
-        query = query.filter(RiskModel.level == level)
+        query = query.filter(RiskModel.level.ilike(level))
 
     # search filter
     if search:

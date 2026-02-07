@@ -2,16 +2,16 @@
 # -------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # imports
-from fastapi import FastAPI, Depends, HTTPException, Query
+import os
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy import or_
 from pydantic import BaseModel, Field
 from typing import List, Optional
-
-import os
+from datetime import datetime
 from dotenv import load_dotenv
 
 # dotenv config
@@ -19,17 +19,19 @@ load_dotenv()
 
 # db connection
 SQLALCHEMY_DATABASE_URL = "sqlite:///./risks.db"
+
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL, 
+    connect_args={"check_same_thread": False}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # db model
 Base = declarative_base()
 
+# model
 class RiskModel(Base):
     __tablename__ = "risks"
-    
     id = Column(Integer, primary_key=True, index=True)
     asset = Column(String, index=True)
     threat = Column(String)
@@ -37,6 +39,8 @@ class RiskModel(Base):
     impact = Column(Integer)
     score = Column(Integer)
     level = Column(String)
+    mitigation = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 # create tables on startup
 Base.metadata.create_all(bind=engine)
@@ -54,11 +58,10 @@ class RiskOutput(RiskInput):
     score: int
     level: str
     mitigation: str
+    created_at: datetime
 
     class Config:
         from_attributes = True
-
-
 
 # app init
 app = FastAPI()
@@ -87,7 +90,6 @@ def get_db():
 
 # risk level
 def calculate_risk_level(score: int) -> str:
-
     if score <= 5: return "Low"
     if score <= 12: return "Medium"
     if score <= 18: return "High"
@@ -95,27 +97,22 @@ def calculate_risk_level(score: int) -> str:
 
 # mititgation
 def get_mitigation_hint(level: str) -> str:
-    if level == "Low":
-        return "Accept / monitor"
-    elif level == "Medium":
-        return "Plan mitigation within 6 months"
-    elif level == "High":
-        return "Prioritize action + compensating controls (NIST PR.AC)"
-    elif level == "Critical":
-        return "Immediate mitigation required + executive reporting"
+    if level == "Low": return "Accept / monitor"
+    if level == "Medium": return "Plan mitigation within 6 months"
+    if level == "High": return "Prioritize action + compensating controls"
+    if level == "Critical": return "Immediate mitigation required"
     return ""
-
 
 # route /assess-risk
 @app.post("/assess-risk", response_model=RiskOutput)
 def assess_risk(risk: RiskInput, db: Session = Depends(get_db)):
-
+    
     # error handle
     if not (1 <= risk.likelihood <= 5) or not (1 <= risk.impact <= 5):
-         raise HTTPException(
-             status_code=400, 
-             detail="Invalid range: Likelihood and Impact must be 1–5."
-         )
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid range: Likelihood and Impact must be 1–5."
+        )
 
     # business logic
     score = risk.likelihood * risk.impact 
@@ -130,16 +127,16 @@ def assess_risk(risk: RiskInput, db: Session = Depends(get_db)):
         impact=risk.impact,
         score=score,
         level=level,
-        mitigation=mitigation
+        mitigation=mitigation,
+        created_at=datetime.utcnow()
     )
-
-    # added to db
+    
+    # new entry
     db.add(new_risk)
     db.commit()
     db.refresh(new_risk)
     
     return new_risk
-
 
 # route /risks
 @app.get("/risks", response_model=List[RiskOutput])
